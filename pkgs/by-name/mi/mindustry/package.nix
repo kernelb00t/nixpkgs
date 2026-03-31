@@ -42,14 +42,14 @@
     owner = "Anuken";
     repo = "Mindustry";
     tag = "v${version}";
-    hash = "sha256-FDCQjNSnbwl2bTQCKrWWKPxogSi6mfDC9plsdHWZ60g=";
+    hash = "sha256-QE9Hp3ywZYh3M8XredFeqYD68WGK5N6goAwcVXzFxR8=";
   };
   Arc = fetchFromGitHub {
     name = "Arc-source";
     owner = "Anuken";
     repo = "Arc";
     tag = "v${version}";
-    hash = "sha256-rTjFaggMk6DanW5/cLqw8nJxg7AlM9r+KXYNANhJoYA=";
+    hash = "sha256-nAFrmy6lvPS8KwP0I9v/z1fpms7zSRxxLhoR8vcavkY=";
   };
   soloud = fetchFromGitHub {
     owner = "Anuken";
