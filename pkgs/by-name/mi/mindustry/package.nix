@@ -8,7 +8,7 @@
   gradle,
   jdk17,
   zenity,
-
+  unzip,
   # for arc
   SDL2,
   pkg-config,
@@ -18,13 +18,10 @@
   alsa-lib,
   alsa-plugins,
   glew,
-
   # for soloud
   libpulseaudio ? null,
   libjack2 ? null,
-
   nixosTests,
-
   # Make the build version easily overridable.
   # Server and client build versions must match, and an empty build version means
   # any build is allowed, so this parameter acts as a simple whitelist.
@@ -32,11 +29,8 @@
   makeBuildVersion ? (v: v),
   enableClient ? true,
   enableServer ? true,
-
   enableWayland ? false,
-}:
-
-let
+}: let
   pname = "mindustry";
   version = "156";
   buildVersion = makeBuildVersion version;
@@ -48,21 +42,21 @@ let
     owner = "Anuken";
     repo = "Mindustry";
     tag = "v${version}";
-    hash = "sha256-NHI+YLh4ptuAEff6NM9ZgN2haB+iZ9np7nf6iRMzgHw=";
+    hash = "sha256-FDCQjNSnbwl2bTQCKrWWKPxogSi6mfDC9plsdHWZ60g=";
   };
   Arc = fetchFromGitHub {
     name = "Arc-source";
     owner = "Anuken";
     repo = "Arc";
     tag = "v${version}";
-    hash = "sha256-9nUj9aP1yAvZEDBuJPfE4ZzGEbZOSuVK+KbD1kUG+dM=";
+    hash = "sha256-rTjFaggMk6DanW5/cLqw8nJxg7AlM9r+KXYNANhJoYA=";
   };
   soloud = fetchFromGitHub {
     owner = "Anuken";
     repo = "soloud";
     # This is pinned in Arc's arc-core/build.gradle
-    tag = "2025.12.01";
-    hash = "sha256-I+VZW34eRGn1RJmK8e9nVSXIFSOK/pER+xEhmXeUB4Y=";
+    tag = "2026.02.03";
+    hash = "sha256-Klng3c/AN5oYxnU+jeTnlPEThhKlpGADgmygjJRAJDg=";
   };
 
   desktopItem = makeDesktopItem {
@@ -70,192 +64,201 @@ let
     desktopName = "Mindustry";
     exec = "mindustry";
     icon = "mindustry";
-    categories = [ "Game" ];
+    categories = ["Game"];
   };
-
 in
-assert lib.assertMsg (
-  enableClient || enableServer
-) "mindustry: at least one of 'enableClient' and 'enableServer' must be true";
-stdenv.mkDerivation {
-  inherit pname version;
+  assert lib.assertMsg (
+    enableClient || enableServer
+  ) "mindustry: at least one of 'enableClient' and 'enableServer' must be true";
+    stdenv.mkDerivation {
+      inherit pname version;
 
-  unpackPhase = ''
-    runHook preUnpack
+      unpackPhase = ''
+        runHook preUnpack
 
-    cp -r ${Mindustry} Mindustry
-    cp -r ${Arc} Arc
-    chmod -R u+w -- Mindustry Arc
-    cp -r ${soloud} Arc/arc-core/csrc/soloud
-    chmod -R u+w -- Arc/arc-core/csrc/soloud
+        cp -r ${Mindustry} Mindustry
+        cp -r ${Arc} Arc
+        chmod -R u+w -- Mindustry Arc
+        cp -r ${soloud} Arc/arc-core/csrc/soloud
+        chmod -R u+w -- Arc/arc-core/csrc/soloud
 
-    runHook postUnpack
-  '';
+        runHook postUnpack
+      '';
 
-  postPatch = ''
-    # Ensure the prebuilt shared objects don't accidentally get shipped
-    rm -r Arc/natives/natives-*/libs/*
-    rm -r Arc/backends/backend-*/libs/*
-    rm -f Arc/arc-core/unsafe/unsafe.jar
+      postPatch =
+        ''
+          # Ensure the prebuilt shared objects don't accidentally get shipped
+          rm -r Arc/natives/natives-*/libs/*
+          rm -r Arc/backends/backend-*/libs/*
 
-    cd Mindustry
+          cd Mindustry
 
-    # Fix duplicate class entries in arc-core jar with newer Gradle
-    substituteInPlace ../Arc/arc-core/build.gradle \
-      --replace-fail 'jar{' 'jar{ duplicatesStrategy = DuplicatesStrategy.EXCLUDE'
+          # Fix duplicate class entries in arc-core jar with newer Gradle
+          substituteInPlace ../Arc/arc-core/build.gradle \
+            --replace-fail 'jar{' 'jar{ duplicatesStrategy = DuplicatesStrategy.EXCLUDE'
 
-    # Remove unbuildable iOS stuff
-    sed -i '/^project(":ios"){/,/^}/d' build.gradle
-    sed -i '/robo(vm|VM)/d' build.gradle
-    rm ios/build.gradle
-  ''
-  + lib.optionalString (!stdenv.hostPlatform.isx86) ''
-    substituteInPlace ../Arc/arc-core/build.gradle \
-      --replace-fail "-msse" ""
-    substituteInPlace ../Arc/backends/backend-sdl/build.gradle \
-      --replace-fail "-m64" ""
-  '';
+          # Remove unbuildable iOS stuff
+          sed -i '/^project(":ios"){/,/^}/d' build.gradle
+          sed -i '/robo(vm|VM)/d' build.gradle
+          rm ios/build.gradle
+        ''
+        + lib.optionalString (!stdenv.hostPlatform.isx86) ''
+          substituteInPlace ../Arc/arc-core/build.gradle \
+            --replace-fail "-msse" ""
+          substituteInPlace ../Arc/backends/backend-sdl/build.gradle \
+            --replace-fail "-m64" ""
+        '';
 
-  mitmCache = gradle.fetchDeps {
-    inherit pname;
-    data = ./deps.json;
-  };
+      mitmCache = gradle.fetchDeps {
+        inherit pname;
+        data = ./deps.json;
+      };
 
-  __darwinAllowLocalNetworking = true;
+      __darwinAllowLocalNetworking = true;
 
-  buildInputs = lib.optionals enableClient [
-    SDL2
-    alsa-lib
-    glew
-  ];
-  nativeBuildInputs = [
-    pkg-config
-    gradle
-    makeWrapper
-    jdk
-  ]
-  ++ lib.optionals enableClient [
-    ant
-    copyDesktopItems
-    curl
-    wget
-  ];
+      buildInputs = lib.optionals enableClient [
+        SDL2
+        alsa-lib
+        glew
+      ];
+      nativeBuildInputs =
+        [
+          pkg-config
+          gradle
+          makeWrapper
+          jdk
+        ]
+        ++ lib.optionals enableClient [
+          ant
+          copyDesktopItems
+          curl
+          wget
+          unzip
+        ];
 
-  desktopItems = lib.optional enableClient desktopItem;
+      desktopItems = lib.optional enableClient desktopItem;
 
-  gradleFlags = [
-    "-Pbuildversion=${buildVersion}"
-    "-Dorg.gradle.java.home=${jdk}"
-  ];
+      gradleFlags = [
+        "-Pbuildversion=${buildVersion}"
+        "-Dorg.gradle.java.home=${jdk}"
+      ];
 
-  buildPhase = ''
-    runHook preBuild
+      buildPhase =
+        ''
+          runHook preBuild
 
-    pushd ../Arc
-    gradle :arc-core:recompileUnsafe
-    popd
-  ''
-  + lib.optionalString enableServer ''
-    gradle server:dist
-  ''
-  + lib.optionalString enableClient ''
-    pushd ../Arc
-    gradle jnigenBuildLinux64
-    # Copy freshly-built libraries to where Gradle resource dirs expect them.
-    # Using jnigenBuildLinux64 skips the postJni tasks, so we copy manually.
-    # arc-core uses relative libsDir, others use absolute which causes path doubling.
-    cp arc-core/libs/linux64/* natives/natives-desktop/libs/
-    cp -r backends/backend-sdl/build/Arc/backends/backend-sdl/libs/* backends/backend-sdl/libs/
-    cp extensions/freetype/build/Arc/extensions/freetype/libs/*/* natives/natives-freetype-desktop/libs/
-    cp extensions/filedialogs/build/Arc/extensions/filedialogs/libs/*/* natives/natives-filedialogs/libs/
-    glewlib=${lib.getLib glew}/lib/libGLEW.so
-    sdllib=${lib.getLib SDL2}/lib/libSDL2.so
-    patchelf backends/backend-sdl/libs/linux64/libsdl-arc*.so \
-      --add-needed "$glewlib" \
-      --add-needed "$sdllib"
-    gradle jnigenJarNativesDesktop
-    popd
+          pushd ../Arc
 
-    gradle desktop:dist
-  ''
-  + ''
-    runHook postBuild
-  '';
+          rm -f Arc/arc-core/unsafe/unsafe.jar
+          gradle :arc-core:recompileUnsafe
 
-  installPhase =
-    let
-      installClient = ''
-        install -Dm644 desktop/build/libs/Mindustry.jar $out/share/mindustry.jar
-        mkdir -p $out/bin
-        makeWrapper ${jdk}/bin/java $out/bin/mindustry \
-          --add-flags "-jar $out/share/mindustry.jar" \
-          ${lib.optionalString stdenv.hostPlatform.isLinux "--suffix PATH : ${lib.makeBinPath [ zenity ]}"} \
-          --suffix LD_LIBRARY_PATH : ${
+          popd
+        ''
+        + lib.optionalString enableServer ''
+          gradle server:dist
+        ''
+        + lib.optionalString enableClient ''
+          pushd ../Arc
+
+          export LIBRARY_PATH="${lib.getLib stdenv.cc.libc}/lib"
+          gradle jnigenBuildLinux_x86_64
+
+          # Copy freshly-built libraries to where Gradle resource dirs expect them.
+          # arc-core uses relative libsDir, others use absolute which causes path doubling.
+          cp arc-core/libs/linux/x86_64/* natives/natives-desktop/libs/
+          cp -r backends/backend-sdl/build/Arc/backends/backend-sdl/libs/* backends/backend-sdl/libs/
+          cp extensions/freetype/build/Arc/extensions/freetype/libs/*/* natives/natives-freetype-desktop/libs/
+          cp extensions/filedialogs/build/Arc/extensions/filedialogs/libs/*/* natives/natives-filedialogs/libs/
+
+          glewlib=${lib.getLib glew}/lib/libGLEW.so
+          sdllib=${lib.getLib SDL2}/lib/libSDL2.so
+
+          patchelf backends/backend-sdl/libs/linux/x86_64/libsdl-arc*.so \
+            --add-needed "$glewlib" \
+            --add-needed "$sdllib"
+
+          gradle jnigenPackageAllDesktop
+          popd
+
+          gradle desktop:dist
+        ''
+        + ''
+          runHook postBuild
+        '';
+
+      installPhase = let
+        installClient = ''
+          install -Dm644 desktop/build/libs/Mindustry.jar $out/share/mindustry.jar
+          mkdir -p $out/bin
+          makeWrapper ${jdk}/bin/java $out/bin/mindustry \
+            --add-flags "-jar $out/share/mindustry.jar" \
+            ${lib.optionalString stdenv.hostPlatform.isLinux "--suffix PATH : ${lib.makeBinPath [zenity]}"} \
+            --suffix LD_LIBRARY_PATH : ${
             lib.makeLibraryPath [
               libpulseaudio
               alsa-lib
               libjack2
             ]
           } \
-          --set ALSA_PLUGIN_DIR ${alsa-plugins}/lib/alsa-lib/ ${lib.optionalString enableWayland ''
+            --set ALSA_PLUGIN_DIR ${alsa-plugins}/lib/alsa-lib/ ${lib.optionalString enableWayland ''
             --set SDL_VIDEODRIVER wayland \
             --set SDL_VIDEO_WAYLAND_WMCLASS Mindustry
           ''}
 
-        # Retain runtime depends to prevent them from being cleaned up.
-        # Since a jar is a compressed archive, nix can't figure out that the dependency is actually in there,
-        # and will assume that it's not actually needed.
-        # This can cause issues.
-        # See https://github.com/NixOS/nixpkgs/issues/109798.
-        echo "# Retained runtime dependencies: " >> $out/bin/mindustry
-        for dep in ${SDL2.out} ${alsa-lib.out} ${glew.out}; do
-          echo "# $dep" >> $out/bin/mindustry
-        done
+          # Retain runtime depends to prevent them from being cleaned up.
+          # Since a jar is a compressed archive, nix can't figure out that the dependency is actually in there,
+          # and will assume that it's not actually needed.
+          # This can cause issues.
+          # See https://github.com/NixOS/nixpkgs/issues/109798.
+          echo "# Retained runtime dependencies: " >> $out/bin/mindustry
+          for dep in ${SDL2.out} ${alsa-lib.out} ${glew.out}; do
+            echo "# $dep" >> $out/bin/mindustry
+          done
 
-        install -Dm644 core/assets/icons/icon_64.png $out/share/icons/hicolor/64x64/apps/mindustry.png
+          install -Dm644 core/assets/icons/icon_64.png $out/share/icons/hicolor/64x64/apps/mindustry.png
+        '';
+        installServer = ''
+          install -Dm644 server/build/libs/server-release.jar $out/share/mindustry-server.jar
+          mkdir -p $out/bin
+          makeWrapper ${jdk}/bin/java $out/bin/mindustry-server \
+            --add-flags "-jar $out/share/mindustry-server.jar"
+        '';
+      in
+        ''
+          runHook preInstall
+        ''
+        + lib.optionalString enableClient installClient
+        + lib.optionalString enableServer installServer
+        + ''
+          runHook postInstall
+        '';
+
+      postGradleUpdate = ''
+        # this fetches non-gradle dependencies
+        cd ../Arc
+        gradle preJni
       '';
-      installServer = ''
-        install -Dm644 server/build/libs/server-release.jar $out/share/mindustry-server.jar
-        mkdir -p $out/bin
-        makeWrapper ${jdk}/bin/java $out/bin/mindustry-server \
-          --add-flags "-jar $out/share/mindustry-server.jar"
-      '';
-    in
-    ''
-      runHook preInstall
-    ''
-    + lib.optionalString enableClient installClient
-    + lib.optionalString enableServer installServer
-    + ''
-      runHook postInstall
-    '';
 
-  postGradleUpdate = ''
-    # this fetches non-gradle dependencies
-    cd ../Arc
-    gradle preJni
-  '';
+      passthru.tests.nixosTest = nixosTests.mindustry;
 
-  passthru.tests.nixosTest = nixosTests.mindustry;
-
-  meta = {
-    homepage = "https://mindustrygame.github.io/";
-    downloadPage = "https://github.com/Anuken/Mindustry/releases";
-    description = "Sandbox tower defense game";
-    sourceProvenance = with lib.sourceTypes; [
-      fromSource
-      binaryBytecode # deps
-    ];
-    license = lib.licenses.gpl3Plus;
-    maintainers = with lib.maintainers; [
-      chkno
-      fgaz
-      thekostins
-    ];
-    platforms = lib.platforms.all;
-    # TODO alsa-lib is linux-only, figure out what dependencies are required on Darwin
-    broken =
-      enableClient
-      && (stdenv.hostPlatform.isDarwin || (stdenv.hostPlatform.isLinux && stdenv.hostPlatform.isAarch64));
-  };
-}
+      meta = {
+        homepage = "https://mindustrygame.github.io/";
+        downloadPage = "https://github.com/Anuken/Mindustry/releases";
+        description = "Sandbox tower defense game";
+        sourceProvenance = with lib.sourceTypes; [
+          fromSource
+          binaryBytecode # deps
+        ];
+        license = lib.licenses.gpl3Plus;
+        maintainers = with lib.maintainers; [
+          chkno
+          fgaz
+          thekostins
+        ];
+        platforms = lib.platforms.all;
+        # TODO alsa-lib is linux-only, figure out what dependencies are required on Darwin
+        broken =
+          enableClient
+          && (stdenv.hostPlatform.isDarwin || (stdenv.hostPlatform.isLinux && stdenv.hostPlatform.isAarch64));
+      };
+    }
