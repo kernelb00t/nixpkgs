@@ -32,7 +32,7 @@
   enableWayland ? false,
 }: let
   pname = "mindustry";
-  version = "156";
+  version = "156.2";
   buildVersion = makeBuildVersion version;
 
   jdk = jdk17;
